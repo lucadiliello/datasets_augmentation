@@ -133,3 +133,8 @@ python -m datasets_augmentation.retrieve_sentences \
 
 ## Next steps
 - Allow working with `datasets.DatasetDict` instead of only `datasets.Dataset`;
+
+
+## Troubleshooting
+
+- If `datasets` size do not match, maybe an old cached version has been loaded. Try `--reset_cache` to solve or clean HF cache folder `rm -r ~/.cache/huggingface/datasets`;

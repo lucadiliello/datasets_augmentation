@@ -73,7 +73,7 @@ def main(args):
     )
 
     # clean tmp dir from files of this framework
-    logging.info("Cleaning tmp dir from files of this framework...")
+    logging.info("Cleaning tmp directory from files of this framework...")
     cache_file_prefix = 'datasets_augmentation'
     os.makedirs(args.tmp_dir, exist_ok=True)
     clean_folder(args.tmp_dir, cache_file_prefix)
@@ -139,7 +139,9 @@ def main(args):
 
         output_dataset = Dataset.from_generator(
             cache_files_reader,
-            gen_kwargs=dict(cache_files=cache_filepaths, embeddings_name=input_encoding_field)
+            gen_kwargs=dict(
+                cache_files=cache_filepaths, embeddings_name=input_encoding_field, use_multiprocessing=False
+            ),
         )
         logging.info("Sorting dataset to ensure data are in original order...")
         output_dataset = output_dataset.sort('uuid').remove_columns('uuid')
@@ -160,7 +162,6 @@ if __name__ == "__main__":
     parser = ArgumentParser()
 
     # input dataset
-
     parser.add_argument('--input_dataset', type=str, required=True)
     parser.add_argument('--input_field', type=str, required=True, help="Field for which data will be generated")
     parser.add_argument('--input_shard', type=int, required=False, default=None)
@@ -176,8 +177,10 @@ if __name__ == "__main__":
     parser.add_argument('--encoding_chunk_size', type=int, default=2**23, required=False)
     parser.add_argument('--max_encoding_length', type=int, default=128, required=False)
 
-    # resulting dataset path
+    # resulting dataset
     parser.add_argument('--output_dataset', type=str, required=True)
+
+    # tmp folders management
     parser.add_argument(
         '--tmp_dir', type=str, required=False, default="/tmp", help="Change if space on main disk is limited"
     )

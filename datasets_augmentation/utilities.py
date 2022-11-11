@@ -1,6 +1,6 @@
 import os
 from multiprocessing import Pool, cpu_count
-from typing import Any, Dict, Generator, Iterable, List
+from typing import Any, Dict, Generator, Iterable, List, Tuple
 
 import nltk
 import torch
@@ -126,7 +126,7 @@ def clean_folder(folder: str, prefix: str = None):
             os.remove(os.path.join(folder, filename))
 
 
-def cache_file_reader(inputs: List[str]) -> Generator[Dict, None, None]:
+def cache_file_reader(inputs: Tuple[str]) -> List[Dict]:
     r""" Read single file in the cache folder and yield single examples. """
     filename, embeddings_name = inputs
 
@@ -137,8 +137,16 @@ def cache_file_reader(inputs: List[str]) -> Generator[Dict, None, None]:
     ]
 
 
-def cache_files_reader(cache_files: List[str] = None, embeddings_name: str = None) -> Generator[Dict, None, None]:
+def cache_files_reader(
+    cache_files: List[str] = None,
+    embeddings_name: str = None,
+    use_multiprocessing: bool = False,
+) -> Generator[Dict, None, None]:
     r""" Multiprocessing read of files in the cache folder and yield single examples. """
-    with Pool(processes=min(cpu_count() // 4, len(cache_files))) as pool:
-        for results in pool.map(cache_file_reader, ((filename, embeddings_name) for filename in cache_files)):
-            yield from results
+    if use_multiprocessing:
+        with Pool(processes=min(cpu_count() // 4, len(cache_files))) as pool:
+            for results in pool.map(cache_file_reader, ((filename, embeddings_name) for filename in cache_files)):
+                yield from results
+    else:
+        for filename in cache_files:
+            yield from cache_file_reader((filename, embeddings_name))
