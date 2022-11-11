@@ -1,0 +1,11 @@
+nltk
+torch>=1.12
+datasets>=2.6
+sentence_transformers>=2
+blingfire>=0.1.17
+tqdm
+faiss-gpu>=2
+numpy
+rich
+transformers_lightning>=0.7.12
+deepspeed>=0.7.4

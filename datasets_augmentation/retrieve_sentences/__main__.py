@@ -1,0 +1,125 @@
+import logging
+import os
+from argparse import ArgumentParser
+
+import faiss
+import numpy as np
+from datasets import load_from_disk
+from multiprocess import cpu_count
+from tqdm import tqdm
+
+from datasets_augmentation.utilities import flatten_on_field, parse_arg, return_column_data_in_splits
+
+
+logging.getLogger().setLevel(logging.INFO)
+
+
+def main(args):
+    r""" Augment dataset with similar (negative) candidates. """
+    assert not os.path.exists(args.output_dataset), (
+        f"Cannot write to {args.output_dataset} because it is not empty"
+    )
+
+    if args.flatten_change_fields is not None:
+        assert args.flatten is True, "Cannot set `--flatten_change_fields` without `--flatten`"
+        args.flatten_change_fields = parse_arg(args.flatten_change_fields)
+
+    logging.info("Loading datasets...")
+    input_dataset = load_from_disk(args.input_dataset)
+    augment_dataset = load_from_disk(args.augment_dataset)
+
+    logging.info("Checking datasets features...")
+    for field, dataset in zip((args.input_field, args.augment_field), (input_dataset, augment_dataset)):
+        encoding_field = f"{field}_encoding"
+        assert (
+            field in dataset.features
+            and dataset.features[field].dtype == 'string'
+            and dataset.features[encoding_field].dtype == 'list'
+            and dataset.features[encoding_field].feature.dtype == 'float32'
+        )
+
+    input_encoding_field = f"{args.input_field}_encoding"
+    augment_encoding_field = f"{args.augment_field}_encoding"
+
+    logging.info("Building index...")
+    search_engine = faiss.IndexFlatL2(args.hidden_size)
+
+    if args.devices is not None:
+        logging.info("Moving index to GPU(s)...")
+        assert args.devices <= faiss.get_num_gpus(), (
+            f"Cannot run index on {args.devices} devices, found only {faiss.get_num_gpus()}"
+        )
+        search_engine = faiss.index_cpu_to_all_gpus(search_engine, ngpu=args.devices)
+
+    logging.info("Adding data to index...")
+    search_engine.add(
+        np.vstack(augment_dataset[augment_encoding_field]).astype(np.float32)
+    )
+
+    logging.info("Finding similar sentences embeddings...")
+    queries = np.vstack(input_dataset[input_encoding_field]).astype(np.float32)
+
+    indexes = []
+    for part in tqdm(np.array_split(queries, max(len(queries) // args.search_batch_size, 1), axis=0), desc="Quering"):
+        indexes.append(search_engine.search(part, k=args.top_k)[1])
+    indexes = np.concatenate(indexes, axis=0)
+
+    real_split_sizes = (indexes != -1).sum(-1)
+    indexes = indexes.flatten()
+
+    logging.info("Retrieving similar sentences from augmentation dataset...")
+    data = list(
+        return_column_data_in_splits(
+            augment_dataset.select(indexes), column_name=args.augment_field, split_size=real_split_sizes
+        )
+    )
+
+    # indexes: double array containing indexes of top_k elements for each query
+    augmented_field_name = f"{args.input_field}_augmented"
+    input_dataset = input_dataset.remove_columns(input_encoding_field).add_column(augmented_field_name, data)
+
+    if args.flatten:
+        input_dataset = input_dataset.map(
+            flatten_on_field,
+            num_proc=cpu_count(),
+            fn_kwargs=dict(
+                field=args.input_field,
+                augment_field=augmented_field_name,
+                flatten_change_fields=args.flatten_change_fields,
+            ),
+            batched=True,
+            remove_columns=input_dataset.column_names,
+        )
+
+    logging.info("Saving results")
+    input_dataset.save_to_disk(args.output_dataset)
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+
+    # input dataset
+    parser.add_argument('--input_dataset', type=str, required=True)
+    parser.add_argument('--input_field', type=str, required=True, help="Field that was previously encoded")
+
+    # dataset to search in for augmentations
+    parser.add_argument('--augment_dataset', type=str, required=True)
+    parser.add_argument(
+        '--augment_field', type=str, required=True, help="Field that was previously encoded"
+    )
+
+    parser.add_argument('--devices', type=int, default=None, required=False)
+
+    # encoding parameters
+    parser.add_argument('--hidden_size', type=int, required=True)
+    parser.add_argument('--search_batch_size', type=int, default=2**18, required=False)
+    parser.add_argument('--top_k', type=int, default=10, required=False)
+    parser.add_argument('--flatten', action="store_true")
+    parser.add_argument(
+        '--flatten_change_fields', type=str, nargs='+', default=None, help="Fields to be changed while flattening"
+    )
+
+    # resulting dataset path
+    parser.add_argument('--output_dataset', type=str, required=True)
+    args = parser.parse_args()
+    main(args)
