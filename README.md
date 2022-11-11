@@ -2,12 +2,11 @@
 Increment datasets size retrieving similar sentences from large sources.
 
 This library is based on:
-- `sentence-transformers`
-- `faiss`
-- `transformers`
-- `datasets`
-- `pytorch-lightning`
-- `transformers-lightning`
+- [`sentence-transformers`](https://www.sbert.net)
+- [`faiss`](https://faiss.ai)
+- [`transformers`](https://huggingface.co/docs/transformers/index) and [`datasets`](https://huggingface.co/docs/datasets/index)
+- [`pytorch-lightning`](https://pytorch-lightning.readthedocs.io/en/latest/)
+- [`transformers-lightning`](https://huggingface.co/docs/datasets/index)
 
 
 The process of retrieving similar sentences is divided in 2 tests:
