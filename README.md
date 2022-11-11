@@ -9,14 +9,14 @@ This library is based on:
 - [`transformers-lightning`](https://github.com/iKernels/transformers-lightning)
 
 
-The process of retrieving similar sentences is divided in 2 tests:
+The process of retrieving similar sentences is divided in 2 tasks:
 - Encoding of the columns containing the sentences to compare
 - Comparison and retrieval of the similar sentences
 
 
 ## Encoding
 
-The encoding takes a Huggingface `datasets.Dataset` and encodes one column to a vector of floats.
+The encoding takes a Huggingface `datasets.Dataset` in input and encodes one column to a vector of floats.
 
 To launch the encoding, run the following command:
 
@@ -42,14 +42,15 @@ with the following parameters:
 Non-exhaustive list of additional parameters derived from `pytorch-lightning`:
 - `--devices <n>`: number of CPUs or GPUs to use;
 - `--accelerator <cpu|gpu|tpu|mps|...>`: the device to use for encoding;
-- `--strategy <name_of_strategy>`: I strongly suggest `ddp` or `deepspeed_stage_2` if the number of devices is greater than 1, blank otherwise.
-- `--precision <32|16>`: use normal `fp32` encoding or speed up training with `fp16`.
+- `--strategy <name_of_strategy>`: I strongly suggest `ddp` or `deepspeed_stage_2` if the number of devices is greater than 1, blank otherwise;
+- `--precision <32|16>`: use normal `fp32` encoding or speed up training with `fp16`;
 
 The resulting dataset will have an additional column called `{input_field}_encoded` containing the encodings.
 
+
 ### Example
 
-Download MNLI dataset from the hub:
+Download MNLI dataset from the HuggingFace hub:
 
 ```python
 from datasets import load_dataset
@@ -81,7 +82,7 @@ print(d[1])
 ...
 ```
 
-You should repeat this operation both for the dataset you want to augment and for the dataset you will retrieve new data from.
+You should repeat this operation both for the dataset you want to augment and for the dataset you will retrieve new sentences from.
 
 
 ## Retrival of similar sentences
@@ -107,8 +108,8 @@ with the following parameters:
 - `--output_dataset <path>`: path to save the new dataset with additional sentences;
 
 Additional parameters:
-- `--flatten`: whether output dataset should be flatten, which means that a new example will be created for each new sentence. Other values will be copied from the pilot example.
-- `--flatten_change_fields`: if you want to change some field (for example `label`) only for the new examples when flattening, use this parameters. Use the format `column_name:type:value` to instruct the framework about how to change samples. For example, `label:int:-1` will change the label field to integer -1 for all new samples.
+- `--flatten`: whether output dataset should be flatten, which means that a new example will be created for each new sentence. Other values will be copied from the pilot example;
+- `--flatten_change_fields`: if you want to change some field (for example `label`) only for the new examples when flattening, use this parameters. Use the format `column_name:type:value` to instruct the framework about how to change samples. For example, `label:int:-1` will change the label field to integer -1 for all new samples;
 
 
 ### Example
