@@ -6,7 +6,7 @@ This library is based on:
 - [`faiss`](https://faiss.ai)
 - [`transformers`](https://huggingface.co/docs/transformers/index) and [`datasets`](https://huggingface.co/docs/datasets/index)
 - [`pytorch-lightning`](https://pytorch-lightning.readthedocs.io/en/latest/)
-- [`transformers-lightning`](https://huggingface.co/docs/datasets/index)
+- [`transformers-lightning`](https://github.com/iKernels/transformers-lightning)
 
 
 The process of retrieving similar sentences is divided in 2 tests:
