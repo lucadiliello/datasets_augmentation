@@ -100,10 +100,11 @@ with the following parameters:
 - `--augment_dataset <path>`: path to the dataset that will be used to retrieve new sentences;
 -- `--augment_field <name_of_the_column>`: the column that will be used for similarity. A column named `{name_of_the_column}_encoding` should also be present in the `augment_dataset` that should have been generated in the previous section;
 
-- `--devices`: number of GPUs that should be used for similarity computation with FAISS;
-- `--hidden_size`: hidden size of the encodings. It has been printed by the previous method at the end of the encoding;
-- `--search_batch_size`: search batch size inside the index;
-- `--top_k`: the number of similar sentences that should be retrieved for each 
+- `--devices <num_devices>`: number of GPUs that should be used for similarity computation with FAISS;
+- `--hidden_size <d>`: hidden size of the encodings. It has been printed by the previous method at the end of the encoding;
+- `--shard_index`: use this parameter to shard the index over the GPUs instead of replicating it. This will reduce GPU memory usage but also reduce speed;
+- `--search_batch_size <batch_size>`: search batch size inside the index;
+- `--top_k <k>`: the number of similar sentences that should be retrieved for each 
 
 - `--output_dataset <path>`: path to save the new dataset with additional sentences;
 
