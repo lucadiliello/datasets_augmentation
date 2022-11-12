@@ -28,6 +28,10 @@ def main(args):
     input_dataset = load_from_disk(args.input_dataset)
     augment_dataset = load_from_disk(args.augment_dataset)
 
+    if args.reset_cache:
+        input_dataset.cleanup_cache_files()
+        augment_dataset.cleanup_cache_files()
+
     logging.info("Checking datasets features...")
     for field, dataset in zip((args.input_field, args.augment_field), (input_dataset, augment_dataset)):
         encoding_field = f"{field}_encoding"
@@ -130,5 +134,7 @@ if __name__ == "__main__":
 
     # resulting dataset path
     parser.add_argument('--output_dataset', type=str, required=True)
+    parser.add_argument('--reset_cache', action="store_true", help="Clean all previously cached processed datasets")
+
     args = parser.parse_args()
     main(args)
