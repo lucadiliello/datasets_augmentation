@@ -28,6 +28,10 @@ def main(args):
     input_dataset = load_from_disk(args.input_dataset)
     augment_dataset = load_from_disk(args.augment_dataset)
 
+    if args.reset_cache:
+        input_dataset.cleanup_cache_files()
+        augment_dataset.cleanup_cache_files()
+
     logging.info("Checking datasets features...")
     for field, dataset in zip((args.input_field, args.augment_field), (input_dataset, augment_dataset)):
         encoding_field = f"{field}_encoding"
@@ -35,7 +39,11 @@ def main(args):
             field in dataset.features
             and dataset.features[field].dtype == 'string'
             and dataset.features[encoding_field].dtype == 'list'
-            and dataset.features[encoding_field].feature.dtype == 'float32'
+            and dataset.features[encoding_field].feature.dtype.startswith('float')
+        ), (
+            f"Field {field} is not a column containing strings or "
+            f"field {field}_encoding does not contain encodings as list of floats. "
+            f"Available features are {dataset.features}"
         )
 
     input_encoding_field = f"{args.input_field}_encoding"
@@ -49,7 +57,9 @@ def main(args):
         assert args.devices <= faiss.get_num_gpus(), (
             f"Cannot run index on {args.devices} devices, found only {faiss.get_num_gpus()}"
         )
-        search_engine = faiss.index_cpu_to_all_gpus(search_engine, ngpu=args.devices)
+        co = faiss.GpuMultipleClonerOptions()
+        co.shard = args.shard_index
+        search_engine = faiss.index_cpu_to_all_gpus(search_engine, co=co, ngpu=args.devices)
 
     logging.info("Adding data to index...")
     search_engine.add(
@@ -112,6 +122,9 @@ if __name__ == "__main__":
 
     # encoding parameters
     parser.add_argument('--hidden_size', type=int, required=True)
+    parser.add_argument(
+        '--shard_index', action="store_true", help="Shard index on the available GPUs instead of replicating"
+    )
     parser.add_argument('--search_batch_size', type=int, default=2**18, required=False)
     parser.add_argument('--top_k', type=int, default=10, required=False)
     parser.add_argument('--flatten', action="store_true")
@@ -121,5 +134,7 @@ if __name__ == "__main__":
 
     # resulting dataset path
     parser.add_argument('--output_dataset', type=str, required=True)
+    parser.add_argument('--reset_cache', action="store_true", help="Clean all previously cached processed datasets")
+
     args = parser.parse_args()
     main(args)

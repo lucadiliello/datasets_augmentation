@@ -1,11 +1,13 @@
+import copy
 import logging
 import math
 import os
 from argparse import ArgumentParser
+from multiprocessing import cpu_count
 from typing import Dict, Generator
 
 import torch
-from datasets import Dataset, concatenate_datasets
+from datasets import Dataset, Sequence, Value, concatenate_datasets
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import RichModelSummary
 from pytorch_lightning.strategies.ddp import DDPStrategy
@@ -14,9 +16,7 @@ from tqdm import tqdm
 
 from datasets_augmentation.compute_embeddings.data import get_dataloader, prepare_dataset
 from datasets_augmentation.compute_embeddings.model import EncodingModel
-from datasets_augmentation.utilities import (
-    TQDMProgressBar, cache_files_reader, clean_folder, split_dataset_in_chunks
-)
+from datasets_augmentation.utilities import TQDMProgressBar, cache_files_reader, clean_folder, split_dataset_in_chunks
 
 
 os.environ['TOKENIZERS_PARALLELISM'] = "true"
@@ -143,6 +143,16 @@ def main(args):
                 cache_files=cache_filepaths, embeddings_name=input_encoding_field, use_multiprocessing=False
             ),
         )
+
+        if args.output_encoding_type is not None:
+            logging.info(f"Converting encodings to {args.output_encoding_type}...")
+            new_features = copy.deepcopy(output_dataset.features)
+            new_features[input_encoding_field] = Sequence(feature=Value(dtype=args.output_encoding_type))
+            output_dataset = output_dataset.cast(
+                new_features,
+                num_proc=cpu_count(),
+            )
+
         logging.info("Sorting dataset to ensure data are in original order...")
         output_dataset = output_dataset.sort('uuid').remove_columns('uuid')
 
@@ -179,6 +189,9 @@ if __name__ == "__main__":
 
     # resulting dataset
     parser.add_argument('--output_dataset', type=str, required=True)
+    parser.add_argument(
+        '--output_encoding_type', type=str, required=False, choices=('float16', 'float32', 'float64'), default=None
+    )
 
     # tmp folders management
     parser.add_argument(
