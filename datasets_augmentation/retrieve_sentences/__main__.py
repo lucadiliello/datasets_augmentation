@@ -30,7 +30,7 @@ def main(args):
 
     logging.info("Loading datasets...")
     input_dataset = load_from_disk(args.input_dataset)
-    augment_dataset = load_from_disk(args.augment_dataset).shard(100, 0)
+    augment_dataset = load_from_disk(args.augment_dataset)  # TODO: add sharding option
 
     if args.reset_cache:
         input_dataset.cleanup_cache_files()
@@ -61,6 +61,7 @@ def main(args):
     augment_dataset.set_format('numpy', columns=[augment_encoding_field])
 
     logging.info("Building index...")
+    # TODO: add quantizer option
     # search_engine = faiss.IndexScalarQuantizer(args.hidden_size, faiss.ScalarQuantizer.QT_fp16, faiss.METRIC_L2)
     search_engine = faiss.IndexFlatL2(args.hidden_size)
 
