@@ -150,3 +150,11 @@ def cache_files_reader(
     else:
         for filename in cache_files:
             yield from cache_file_reader((filename, embeddings_name))
+
+
+def split_dataset(dataset: Dataset, split_size: int) -> Iterable[Dataset]:
+    r""" Split a dataset on the rows and return iterable of smaller datasets. """
+    start = 0
+    while start < len(dataset):
+        yield dataset.select(range(start, min(len(dataset), start + split_size)))
+        start += split_size
