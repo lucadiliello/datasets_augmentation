@@ -25,7 +25,7 @@ os.environ['TOKENIZERS_PARALLELISM'] = "true"
 logging.getLogger("transformers").setLevel(logging.ERROR)  # too much complains of the tokenizers
 
 
-OUTPUT_LOGGING = '/tmp/datasets_augmentation'
+DATASET_CHUNK_PREFIX = "chunk"
 
 
 def encode(
@@ -36,7 +36,7 @@ def encode(
     encoding_batch_size: int = None,
     remove_stopwords: bool = None,
     max_encoding_length: bool = None,
-    tmp_dir: str = None,
+    dataset_cache_folder: str = None,
     chunk_id: int = 0,
 ) -> Generator[Dict, None, None]:
     r""" Process a large chunk of data at a time to reduce memory usage. """
@@ -58,8 +58,8 @@ def encode(
     embeddings = torch.cat([step_predictions[1] for step_predictions in all_predictions], axis=0)
 
     # temporarily save to disk to avoid RAM overflows
-    cache_filename = f"datasets_augmentation-chunk_{chunk_id}-process_{trainer.global_rank}"
-    cache_filepath = os.path.join(tmp_dir, cache_filename)
+    cache_filename = f"{DATASET_CHUNK_PREFIX}_{chunk_id}-process_{trainer.global_rank}"
+    cache_filepath = os.path.join(dataset_cache_folder, cache_filename)
     torch.save(dict(uuids=uuids, embeddings=embeddings), cache_filepath)
 
     # assert all processes in distributed saved the embeddings
@@ -75,9 +75,14 @@ def main(args):
 
     # clean tmp dir from files of this framework
     rank_zero_info("Cleaning tmp directory from files of this framework...")
-    cache_file_prefix = 'datasets_augmentation'
-    os.makedirs(args.tmp_dir, exist_ok=True)
-    clean_folder(args.tmp_dir, cache_file_prefix)
+
+    datasets_cache_folder = os.path.join(args.tmp_dir, 'datasets')
+    trainer_log_folder = os.path.join(args.tmp_dir, 'training')
+    # clean_folder(datasets_cache_folder)
+    clean_folder(trainer_log_folder)
+
+    os.makedirs(datasets_cache_folder, exist_ok=True)
+    os.makedirs(trainer_log_folder, exist_ok=True)
 
     rank_zero_info("Loading model and moving to device...")
     model = EncodingModel(args.model)
@@ -90,7 +95,7 @@ def main(args):
         "This repo is not designed to work with DataParallel. Use strategy `ddp` or other strategies instead."
     )
 
-    kwargs = dict(callbacks=callbacks, logger=None, default_root_dir=OUTPUT_LOGGING)
+    kwargs = dict(callbacks=callbacks, logger=None, default_root_dir=trainer_log_folder)
 
     # instantiate PL trainer
     trainer_hyperparameters = get_trainer_args_from_hyperparameters(args)
@@ -126,7 +131,7 @@ def main(args):
             encoding_batch_size=args.encoding_batch_size,
             remove_stopwords=args.remove_stopwords,
             max_encoding_length=args.max_encoding_length,
-            tmp_dir=args.tmp_dir,
+            dataset_cache_folder=datasets_cache_folder,
             chunk_id=i,
         )
 
@@ -134,8 +139,8 @@ def main(args):
         rank_zero_info("Building final dataset...")
 
         input_encoding_field = f"{args.input_field}_encoding"
-        cache_files = sorted([f for f in os.listdir(args.tmp_dir) if f.startswith(cache_file_prefix)])
-        cache_filepaths = [os.path.join(args.tmp_dir, f) for f in cache_files]
+        cache_files = sorted([f for f in os.listdir(datasets_cache_folder) if f.startswith(DATASET_CHUNK_PREFIX)])
+        cache_filepaths = [os.path.join(datasets_cache_folder, f) for f in cache_files]
 
         output_dataset = Dataset.from_generator(
             cache_files_reader,
@@ -161,9 +166,6 @@ def main(args):
 
         rank_zero_info("Saving to disk...")
         output_dataset.save_to_disk(args.output_dataset)
-
-        rank_zero_info("Cleaning...")
-        clean_folder(args.tmp_dir, cache_file_prefix)
 
         rank_zero_info(f"Successfully computed embeddings of size {model.get_sentence_embedding_dimension()}!")
 
@@ -196,7 +198,11 @@ if __name__ == "__main__":
 
     # tmp folders management
     parser.add_argument(
-        '--tmp_dir', type=str, required=False, default="/tmp", help="Change if space on main disk is limited"
+        '--tmp_dir',
+        type=str,
+        required=False,
+        default="/tmp/datasets_augmentation",
+        help="Change if space on main disk is limited",
     )
     parser.add_argument('--reset_cache', action="store_true", help="Clean all previously cached processed datasets")
 

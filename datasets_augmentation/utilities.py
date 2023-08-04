@@ -1,5 +1,6 @@
 import os
 from multiprocessing import Pool, cpu_count
+import shutil
 from typing import Any, Dict, Generator, Iterable, List, Tuple
 
 import nltk
@@ -121,9 +122,10 @@ def parse_arg(arguments: List[str]) -> Dict[str, Any]:
 
 def clean_folder(folder: str, prefix: str = None):
     r""" Remove all files in folder. If prefix is not None, remove only files beginning with prefix. """
-    for filename in os.listdir(folder):
-        if prefix is None or filename.startswith(prefix):
-            os.remove(os.path.join(folder, filename))
+    if os.path.isdir(folder):
+        for filename in os.listdir(folder):
+            if prefix is None or filename.startswith(prefix):
+                shutil.rmtree(os.path.join(folder, filename))
 
 
 def cache_file_reader(inputs: Tuple[str]) -> List[Dict]:
