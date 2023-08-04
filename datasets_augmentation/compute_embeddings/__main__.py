@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from datasets_augmentation.compute_embeddings.data import get_dataloader, prepare_dataset
 from datasets_augmentation.compute_embeddings.model import EncodingModel
-from datasets_augmentation.utilities import TQDMProgressBar, cache_files_reader, clean_folder, split_dataset_in_chunks
+from datasets_augmentation.utilities import TQDMProgressBar, cache_files_reader, split_dataset_in_chunks
 from transformers_framework.utilities.arguments import add_trainer_args, get_trainer_args_from_hyperparameters
 from transformers_framework.utilities.classes import ExtendedNamespace
 
@@ -38,6 +38,7 @@ def encode(
     max_encoding_length: bool = None,
     dataset_cache_folder: str = None,
     chunk_id: int = 0,
+    num_workers: int = 0,
 ) -> Generator[Dict, None, None]:
     r""" Process a large chunk of data at a time to reduce memory usage. """
 
@@ -48,6 +49,7 @@ def encode(
         batch_size=encoding_batch_size,
         remove_stopwords=remove_stopwords,
         max_encoding_length=max_encoding_length,
+        num_workers=num_workers,
     )
 
     # gather all predictions as single non-nested list
@@ -74,12 +76,9 @@ def main(args):
     )
 
     # clean tmp dir from files of this framework
-    rank_zero_info("Cleaning tmp directory from files of this framework...")
-
+    rank_zero_info("Creating tmp directories from files of this framework...")
     datasets_cache_folder = os.path.join(args.tmp_dir, 'datasets')
     trainer_log_folder = os.path.join(args.tmp_dir, 'training')
-    # clean_folder(datasets_cache_folder)
-    clean_folder(trainer_log_folder)
 
     os.makedirs(datasets_cache_folder, exist_ok=True)
     os.makedirs(trainer_log_folder, exist_ok=True)
@@ -133,6 +132,7 @@ def main(args):
             max_encoding_length=args.max_encoding_length,
             dataset_cache_folder=datasets_cache_folder,
             chunk_id=i,
+            num_workers=cpu_count() // trainer.num_devices,
         )
 
     if not distributed_available() or trainer.global_rank == 0:
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
     # encoding parameters
     parser.add_argument('--encoding_batch_size', type=int, default=128, required=False)
-    parser.add_argument('--encoding_chunk_size', type=int, default=2**23, required=False)
+    parser.add_argument('--encoding_chunk_size', type=int, default=2**25, required=False)
     parser.add_argument('--max_encoding_length', type=int, default=128, required=False)
 
     # resulting dataset

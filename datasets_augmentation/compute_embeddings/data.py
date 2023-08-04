@@ -62,6 +62,7 @@ def get_dataloader(
     batch_size: int,
     remove_stopwords: bool = False,
     max_encoding_length: int = None,
+    num_workers: int = 0,
 ) -> DataLoader:
     r""" Tokenizer input sentences, create batches and eventually clip to max length. """
 
@@ -79,7 +80,7 @@ def get_dataloader(
         dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=cpu_count(),
+        num_workers=num_workers,
         collate_fn=partial_collate_fn,
         pin_memory=True,
         drop_last=False,
@@ -101,10 +102,6 @@ def prepare_dataset(
     logging.info("Checking datasets features...")
     assert args.input_field in input_dataset.features and input_dataset.features[args.input_field].dtype == 'string'
 
-    logging.info("Shuffling dataset")
-    if shuffle:
-        input_dataset = input_dataset.shuffle()
-
     logging.info("Sharding and limiting input datasets...")
     input_dataset = limit_and_shard(input_dataset, shard=args.input_shard, limit=args.input_limit)
 
@@ -119,6 +116,10 @@ def prepare_dataset(
         torch.distributed.barrier()
 
     if args.split_in_sentences:
+        if shuffle:
+            logging.info("Shuffling dataset")
+            input_dataset = input_dataset.shuffle()
+
         logging.info("Splitting dataset field in single sentences...")
         input_dataset = split_field_in_sentences(input_dataset, field=args.input_field)
         logging.info(f"New input dataset length is {len(input_dataset)}")
