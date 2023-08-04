@@ -11,7 +11,8 @@ from datasets import Dataset, Sequence, Value, concatenate_datasets
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import RichModelSummary
 from pytorch_lightning.strategies.ddp import DDPStrategy
-from pytorch_lightning.utilities.distributed import distributed_available
+from lightning_fabric.utilities.distributed import _distributed_available as distributed_available
+from lightning_fabric.utilities.rank_zero import rank_zero_info
 from tqdm import tqdm
 
 from datasets_augmentation.compute_embeddings.data import get_dataloader, prepare_dataset
@@ -20,10 +21,6 @@ from datasets_augmentation.utilities import TQDMProgressBar, cache_files_reader,
 
 
 os.environ['TOKENIZERS_PARALLELISM'] = "true"
-
-logging.getLogger().setLevel(logging.INFO)
-logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
-logging.getLogger("datasets").setLevel(logging.INFO)
 logging.getLogger("transformers").setLevel(logging.ERROR)  # too much complains of the tokenizers
 
 
@@ -73,12 +70,12 @@ def main(args):
     )
 
     # clean tmp dir from files of this framework
-    logging.info("Cleaning tmp directory from files of this framework...")
+    rank_zero_info("Cleaning tmp directory from files of this framework...")
     cache_file_prefix = 'datasets_augmentation'
     os.makedirs(args.tmp_dir, exist_ok=True)
     clean_folder(args.tmp_dir, cache_file_prefix)
 
-    logging.info("Loading model and moving to device...")
+    rank_zero_info("Loading model and moving to device...")
     model = EncodingModel(args.model)
 
     # all callbacks (custom tqdm progress + model summary)
@@ -106,7 +103,7 @@ def main(args):
     )
 
     # start chunked encoding
-    logging.info("Encoding input dataset...")
+    rank_zero_info("Encoding input dataset...")
     if args.encoding_chunk_size is None:
         input_datasets = [original_dataset]
     else:
@@ -131,7 +128,7 @@ def main(args):
         )
 
     if not distributed_available() or trainer.global_rank == 0:
-        logging.info("Building final dataset...")
+        rank_zero_info("Building final dataset...")
 
         input_encoding_field = f"{args.input_field}_encoding"
         cache_files = sorted([f for f in os.listdir(args.tmp_dir) if f.startswith(cache_file_prefix)])
@@ -145,7 +142,7 @@ def main(args):
         )
 
         if args.output_encoding_type is not None:
-            logging.info(f"Converting encodings to {args.output_encoding_type}...")
+            rank_zero_info(f"Converting encodings to {args.output_encoding_type}...")
             new_features = copy.deepcopy(output_dataset.features)
             new_features[input_encoding_field] = Sequence(feature=Value(dtype=args.output_encoding_type))
             output_dataset = output_dataset.cast(
@@ -153,19 +150,19 @@ def main(args):
                 num_proc=cpu_count(),
             )
 
-        logging.info("Sorting dataset to ensure data are in original order...")
+        rank_zero_info("Sorting dataset to ensure data are in original order...")
         output_dataset = output_dataset.sort('uuid').remove_columns('uuid')
 
-        logging.info("Merging with original dataset...")
+        rank_zero_info("Merging with original dataset...")
         output_dataset = concatenate_datasets([original_dataset, output_dataset], axis=1)
 
-        logging.info("Saving to disk...")
+        rank_zero_info("Saving to disk...")
         output_dataset.save_to_disk(args.output_dataset)
 
-        logging.info("Cleaning...")
+        rank_zero_info("Cleaning...")
         clean_folder(args.tmp_dir, cache_file_prefix)
 
-        logging.info(f"Successfully computed embeddings of size {model.get_sentence_embedding_dimension()}!")
+        rank_zero_info(f"Successfully computed embeddings of size {model.get_sentence_embedding_dimension()}!")
 
 
 if __name__ == "__main__":

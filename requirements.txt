@@ -2,9 +2,9 @@ nltk
 torch>=1.12
 datasets>=2.6
 sentence_transformers>=2
-blingfire>=0.1.17
+blingfire>=0.1.8
 tqdm
-faiss-gpu>=2
+faiss>=1.7.4
 numpy
 rich
 transformers_lightning>=0.7.12
