@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 
 import torch
-from pytorch_lightning import LightningModule
+from lightning.pytorch import LightningModule
 from sentence_transformers import SentenceTransformer
 
 

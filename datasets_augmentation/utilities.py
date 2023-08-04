@@ -6,7 +6,7 @@ import nltk
 import torch
 from blingfire import text_to_sentences
 from datasets import Dataset
-from pytorch_lightning.callbacks import TQDMProgressBar as PLTQDMProgressBar
+from lightning.pytorch.callbacks import TQDMProgressBar as PLTQDMProgressBar
 
 
 nltk.download('stopwords', quiet=True)
@@ -42,9 +42,9 @@ def list2dict(data: List[Dict]) -> Dict[Any, List]:
     return res
 
 
-def split_in_sentences(sample: Dict[str, List], field: str = None) -> Dict:
+def split_in_sentences(sample: Dict[str, List], field: str = None, min_sentence_length: int = 10) -> Dict:
     r""" Split text in multiple sentences. """
-    res = sum((text_to_sentences(line).split("\n") for line in sample[field]), [])
+    res = sum([text_to_sentences(line).split("\n") for line in sample[field] if len(line) >= min_sentence_length], [])
     return {field: res}
 
 

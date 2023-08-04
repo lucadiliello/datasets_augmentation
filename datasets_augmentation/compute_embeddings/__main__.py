@@ -8,9 +8,8 @@ from typing import Dict, Generator
 
 import torch
 from datasets import Dataset, Sequence, Value, concatenate_datasets
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import RichModelSummary
-from pytorch_lightning.strategies.ddp import DDPStrategy
+from lightning.pytorch import Trainer
+from lightning.pytorch.callbacks import RichModelSummary
 from lightning_fabric.utilities.distributed import _distributed_available as distributed_available
 from lightning_fabric.utilities.rank_zero import rank_zero_info
 from tqdm import tqdm
@@ -18,10 +17,15 @@ from tqdm import tqdm
 from datasets_augmentation.compute_embeddings.data import get_dataloader, prepare_dataset
 from datasets_augmentation.compute_embeddings.model import EncodingModel
 from datasets_augmentation.utilities import TQDMProgressBar, cache_files_reader, clean_folder, split_dataset_in_chunks
+from transformers_framework.utilities.arguments import add_trainer_args, get_trainer_args_from_hyperparameters
+from transformers_framework.utilities.classes import ExtendedNamespace
 
 
 os.environ['TOKENIZERS_PARALLELISM'] = "true"
 logging.getLogger("transformers").setLevel(logging.ERROR)  # too much complains of the tokenizers
+
+
+OUTPUT_LOGGING = '/tmp/datasets_augmentation'
 
 
 def encode(
@@ -86,20 +90,19 @@ def main(args):
         "This repo is not designed to work with DataParallel. Use strategy `ddp` or other strategies instead."
     )
 
-    kwargs = dict(callbacks=callbacks, logger=None, default_root_dir=None, profiler='simple')
-    # improve ddp speed
-    if args.strategy == "ddp":
-        kwargs['strategy'] = DDPStrategy(
-            find_unused_parameters=False,
-            static_graph=True,
-        )
+    kwargs = dict(callbacks=callbacks, logger=None, default_root_dir=OUTPUT_LOGGING)
 
     # instantiate PL trainer
-    trainer = Trainer.from_argparse_args(args, **kwargs)
+    trainer_hyperparameters = get_trainer_args_from_hyperparameters(args)
+    trainer = Trainer(**trainer_hyperparameters, **kwargs)
 
     # data
     original_dataset = prepare_dataset(
-        args, local_rank=trainer.local_rank, global_rank=trainer.global_rank, prepare_data_per_node=True
+        args,
+        local_rank=trainer.local_rank,
+        global_rank=trainer.global_rank,
+        prepare_data_per_node=True,
+        shuffle=args.shuffle,
     )
 
     # start chunked encoding
@@ -174,6 +177,7 @@ if __name__ == "__main__":
     parser.add_argument('--input_shard', type=int, required=False, default=None)
     parser.add_argument('--input_limit', type=int, required=False, default=None)
     parser.add_argument('--split_in_sentences', action="store_true")
+    parser.add_argument('--shuffle', action="store_true")
 
     # model to encode sentences
     parser.add_argument('--model', type=str, required=True)
@@ -196,7 +200,7 @@ if __name__ == "__main__":
     )
     parser.add_argument('--reset_cache', action="store_true", help="Clean all previously cached processed datasets")
 
-    parser = Trainer.add_argparse_args(parser)
+    add_trainer_args(parser)
 
-    args = parser.parse_args()
+    args = ExtendedNamespace.from_namespace(parser.parse_args())
     main(args)

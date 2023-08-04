@@ -6,7 +6,7 @@ from typing import Callable, Dict, List
 
 import torch
 from datasets import Dataset, load_from_disk
-from pytorch_lightning.utilities.distributed import distributed_available
+from lightning_fabric.utilities.distributed import _distributed_available as distributed_available
 from torch.utils.data import DataLoader
 
 from datasets_augmentation.utilities import remove_stopwords_from_string, split_in_sentences
@@ -87,13 +87,23 @@ def get_dataloader(
     )
 
 
-def prepare_dataset(args: Namespace, local_rank: int, global_rank: int, prepare_data_per_node: bool = False) -> Dataset:
+def prepare_dataset(
+    args: Namespace,
+    local_rank: int,
+    global_rank: int,
+    prepare_data_per_node: bool = False,
+    shuffle: bool = False,
+) -> Dataset:
 
     logging.info("Loading input dataset...")
     input_dataset = load_from_disk(args.input_dataset)
 
     logging.info("Checking datasets features...")
     assert args.input_field in input_dataset.features and input_dataset.features[args.input_field].dtype == 'string'
+
+    logging.info("Shuffling dataset")
+    if shuffle:
+        input_dataset = input_dataset.shuffle()
 
     logging.info("Sharding and limiting input datasets...")
     input_dataset = limit_and_shard(input_dataset, shard=args.input_shard, limit=args.input_limit)
