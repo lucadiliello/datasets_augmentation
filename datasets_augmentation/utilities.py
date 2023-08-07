@@ -53,7 +53,11 @@ def list2dict(data: List[Dict]) -> Dict[Any, List]:
 
 def split_in_sentences(sample: Dict[str, List], field: str = None, min_sentence_length: int = 10) -> Dict:
     r""" Split text in multiple sentences. """
-    res = sum([text_to_sentences(line).split("\n") for line in sample[field] if len(line) >= min_sentence_length], [])
+
+    def process(line: str) -> List[str]:
+        return [x for x in text_to_sentences(line).split("\n") if len(x) >= min_sentence_length]
+
+    res = sum([process(line) for line in sample[field]], [])
     return {field: res}
 
 
