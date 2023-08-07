@@ -2,8 +2,9 @@ import logging
 import math
 import os
 from argparse import ArgumentParser
-import numpy as np
+
 import faiss
+import numpy as np
 from datasets import load_from_disk
 from multiprocess import cpu_count
 from tqdm import tqdm
@@ -25,7 +26,7 @@ def main(args):
         args.flatten_change_fields = parse_arg(args.flatten_change_fields)
 
     assert not args.shard_index or args.addition_batch_size is None, (
-        f"Cannot add in batches when using sharded index"
+        "Cannot add in batches when using sharded index"
     )
 
     logging.info("Loading datasets...")

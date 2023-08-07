@@ -1,5 +1,5 @@
 # Datasets Augmentation Toolkit
-Increment datasets size retrieving similar sentences from large sources.
+Increment datasets size by retrieving similar sentences from large corpora.
 
 This library is based on:
 - [`sentence-transformers`](https://www.sbert.net)
@@ -9,7 +9,7 @@ This library is based on:
 - [`transformers-lightning`](https://github.com/iKernels/transformers-lightning)
 
 
-The process of retrieving similar sentences is divided in 2 tasks:
+The process of retrieving similar sentences is divided into 2 tasks:
 - Encoding of the columns containing the sentences to compare
 - Comparison and retrieval of the similar sentences
 
@@ -29,17 +29,15 @@ with the following parameters:
 - `--input_field <name_of_the_column>`: the column that will be encoded (must contain strings);
 - `--input_shard <n>`: reduces dataset size `n` times (useful for debugging);
 - `--input_limit <n>`: limits dataset length to `n` (useful for debugging);
-- `--split_in_sentences`: if the dataset contains paragraphs or documents, it may be useful to first split every row in single sentences (thus increasing the dataset length);
+- `--split_in_sentences`: if the dataset contains paragraphs or documents, it may be useful to first split every row into single sentences (thus increasing the dataset length);
 
 - `--model <name_or_path>`: name or path of the `sentence-transformers` model that will be used to encode data;
-- `--remove_stopwords`: whether to remove (English) stopwords before encoding to speed up encoding;
-- `--encoding_batch_size <batch_size>`: batch size (per device) for the encoding;
-- `--encoding_chunk_size <batch_size>`: chunk size of the encoding. This will reduce RAM usage with large datasets;
-- `--max_encoding_length <length>`: will clip every encoded sentence to this number of tokens;
+- `--batch_size <batch_size>`: batch size (per device) for the encoding;
+- `--max_sequence_length <length>`: will clip every encoded sentence to this number of tokens;
 
 - `--output_dataset <path>`: path to save the new dataset containing the encodings;
 
-Non-exhaustive list of additional parameters derived from `pytorch-lightning`:
+A non-exhaustive list of additional parameters derived from `pytorch-lightning`:
 - `--devices <n>`: number of CPUs or GPUs to use;
 - `--accelerator <cpu|gpu|tpu|mps|...>`: the device to use for encoding;
 - `--strategy <name_of_strategy>`: I strongly suggest `ddp` or `deepspeed_stage_2` if the number of devices is greater than 1, blank otherwise;
@@ -50,7 +48,7 @@ The resulting dataset will have an additional column called `{input_field}_encod
 
 ### Example
 
-Download MNLI dataset from the HuggingFace hub:
+Download the MNLI dataset from the HuggingFace hub:
 
 ```python
 from datasets import load_dataset
@@ -64,9 +62,8 @@ python -m datasets_augmentation.compute_embeddings \
     --output_dataset /path/to/save/dataset_encoded \
     --model sentence-transformers/nli-roberta-base-v2 \
     --input_field hypothesis \
-    --encoding_batch_size 256 \
-    --remove_stopwords \
-    --max_encoding_length 128 \
+    --batch_size 256 \
+    --max_sequence_length 128 \
     --devices 1 \
     --accelerator gpu \
 ```
@@ -82,12 +79,12 @@ print(d[1])
 ...
 ```
 
-You should repeat this operation both for the dataset you want to augment and for the dataset you will retrieve new sentences from.
+You should repeat this operation both for the dataset you want to augment and for the dataset from which you will retrieve new sentences.
 
 
 ## Retrival of similar sentences
 
-Run addition of similar sentences with:
+Run the addition of similar sentences with:
 
 ```bash
 python -m datasets_augmentation.retrieve_sentences ...
@@ -109,8 +106,8 @@ with the following parameters:
 - `--output_dataset <path>`: path to save the new dataset with additional sentences;
 
 Additional parameters:
-- `--flatten`: whether output dataset should be flatten, which means that a new example will be created for each new sentence. Other values will be copied from the pilot example;
-- `--flatten_change_fields`: if you want to change some field (for example `label`) only for the new examples when flattening, use this parameters. Use the format `column_name:type:value` to instruct the framework about how to change samples. For example, `label:int:-1` will change the label field to integer -1 for all new samples;
+- `--flatten`: whether output dataset should be flattened, which means that a new example will be created for each new sentence. Other values will be copied from the pilot example;
+- `--flatten_change_fields`: if you want to change some field (for example `label`) only for the new examples when flattening, use this parameter. Use the format `column_name:type:value` to instruct the framework about how to change samples. For example, `label:int:-1` will change the label field to integer -1 for all new samples;
 
 
 ### Example
@@ -138,4 +135,4 @@ python -m datasets_augmentation.retrieve_sentences \
 
 ## Troubleshooting
 
-- If `datasets` size do not match, maybe an old cached version has been loaded. Try `--reset_cache` to solve or clean HF cache folder `rm -r ~/.cache/huggingface/datasets`;
+If the `datasets` sizes do not match, maybe an old cached version has been loaded. Try `--reset_cache` to solve or clean HF cache folder `rm -r ~/.cache/huggingface/datasets`;

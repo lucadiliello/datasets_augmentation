@@ -1,6 +1,6 @@
 import os
-from multiprocessing import Pool, cpu_count
 import shutil
+from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, Generator, Iterable, List, Tuple
 
 import nltk
@@ -47,10 +47,6 @@ def split_in_sentences(sample: Dict[str, List], field: str = None, min_sentence_
     r""" Split text in multiple sentences. """
     res = sum([text_to_sentences(line).split("\n") for line in sample[field] if len(line) >= min_sentence_length], [])
     return {field: res}
-
-
-def remove_stopwords_from_string(sentence: str) -> str:
-    return " ".join(word for word in sentence.split(" ") if word not in nltk.corpus.stopwords.words('english'))
 
 
 def split_dataset_in_chunks(dataset: Dataset, chunk_size: int = None):
