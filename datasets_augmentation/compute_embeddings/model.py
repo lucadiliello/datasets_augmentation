@@ -16,9 +16,5 @@ class EncodingModel(LightningModule):
 
     def predict_step(self, batch: Dict) -> Any:
         r""" Does an inference step over the input strings and return embeddings. """
-        # uuid = batch.pop('uuid')
-
         out_features = self.model.forward(batch)
-        embeddings = torch.nn.functional.normalize(out_features['sentence_embedding'], p=2, dim=1)
-
-        return embeddings
+        return torch.nn.functional.normalize(out_features['sentence_embedding'], p=2, dim=1)

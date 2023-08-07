@@ -54,7 +54,6 @@ def collate_fn(
     max_sequence_length: int = None,
 ) -> Dict:
     r""" Tokenizer batch of sentences. """
-
     sentences_batch = [b[field] for b in batch]
     features = tokenize_fn(sentences_batch)
 
@@ -73,9 +72,6 @@ def get_dataloader(
     num_workers: int = 0,
 ) -> DataLoader:
     r""" Tokenizer input sentences, create batches and eventually clip to max length. """
-
-    # dataset = dataset.add_column('uuid', list(range(len(dataset))))
-
     partial_collate_fn = partial(
         collate_fn,
         field=field,
@@ -105,6 +101,7 @@ def prepare_dataset(
     global_rank: int = None,
     **kwargs: Dict,
 ) -> Dataset:
+    r""" Load, check and parse dataset. """
 
     rank_zero_info("Loading input dataset...")
     input_dataset = load_from_disk(input_dataset)
