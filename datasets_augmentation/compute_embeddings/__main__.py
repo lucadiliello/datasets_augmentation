@@ -83,9 +83,9 @@ def main(args):
         input_shard=args.input_shard,
         input_limit=args.input_limit,
         reset_cache=args.reset_cache,
-        split_in_sentences=args.split_in_sentences,
+        split=args.split,
         global_rank=fabric.global_rank,
-        shuffle=args.shuffle,
+        paragraph_split_character=args.paragraph_split_character,
     )
 
     if args.stats and fabric.global_rank == 0:
@@ -179,8 +179,8 @@ if __name__ == "__main__":
     parser.add_argument('--input_field', type=str, required=True, help="Field for which data will be generated")
     parser.add_argument('--input_shard', type=int, required=False, default=None)
     parser.add_argument('--input_limit', type=int, required=False, default=None)
-    parser.add_argument('--split_in_sentences', action="store_true")
-    parser.add_argument('--shuffle', action="store_true")
+    parser.add_argument('--split', type=str, required=False, default=None, choices=('sentences', 'paragraphs'))
+    parser.add_argument('--paragraph_split_character', type=str, required=False, default='\n\n')
     parser.add_argument('--stats', action="store_true")
 
     # model to encode sentences

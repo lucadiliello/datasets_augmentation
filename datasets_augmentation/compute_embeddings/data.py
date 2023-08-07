@@ -6,7 +6,12 @@ import torch
 from datasets import Dataset, load_from_disk
 from torch.utils.data import DataLoader
 
-from datasets_augmentation.utilities import distributed_available, rank_zero_info, split_in_sentences
+from datasets_augmentation.utilities import (
+    distributed_available,
+    rank_zero_info,
+    split_in_paragraphs,
+    split_in_sentences,
+)
 
 
 def limit_and_shard(dataset: Dataset, shard: int = None, limit: int = None) -> Dataset:
@@ -20,14 +25,25 @@ def limit_and_shard(dataset: Dataset, shard: int = None, limit: int = None) -> D
     return dataset
 
 
-def split_field_in_sentences(dataset: Dataset, field: str) -> Dataset:
-    r""" Split content of a field in multiple strings. Dataset length will be thus increased. """
+def split_documents_in_sentences(dataset: Dataset, field: str, **kwargs) -> Dataset:
+    r""" Split content of a field in multiple sentences. Dataset length will be thus increased. """
     return dataset.map(
         split_in_sentences,
         num_proc=cpu_count(),
         remove_columns=dataset.column_names,
         batched=True,
-        fn_kwargs=dict(field=field),
+        fn_kwargs=dict(field=field, **kwargs),
+    )
+
+
+def split_documents_in_paragraphs(dataset: Dataset, field: str, **kwargs) -> Dataset:
+    r""" Split content of a field in multiple paragraphs. Dataset length will be thus increased. """
+    return dataset.map(
+        split_in_paragraphs,
+        num_proc=cpu_count(),
+        remove_columns=dataset.column_names,
+        batched=True,
+        fn_kwargs=dict(field=field, **kwargs),
     )
 
 
@@ -85,9 +101,9 @@ def prepare_dataset(
     input_shard: int = None,
     input_limit: int = None,
     reset_cache: bool = False,
-    split_in_sentences: bool = False,
+    split: str = None,
     global_rank: int = None,
-    shuffle: bool = False,
+    **kwargs: Dict,
 ) -> Dataset:
 
     rank_zero_info("Loading input dataset...")
@@ -107,13 +123,14 @@ def prepare_dataset(
     if distributed_available() and global_rank > 0:
         torch.distributed.barrier()
 
-    if shuffle:
-        rank_zero_info("Shuffling dataset")
-        input_dataset = input_dataset.shuffle()
+    if split is not None:
+        if split == 'sentences':
+            rank_zero_info("Splitting dataset documents into sentences...")
+            input_dataset = split_documents_in_sentences(input_dataset, field=input_field, **kwargs)
+        else:
+            rank_zero_info("Splitting dataset documents into paragraphs...")
+            input_dataset = split_documents_in_paragraphs(input_dataset, field=input_field, **kwargs)
 
-    if split_in_sentences:
-        rank_zero_info("Splitting dataset field in single sentences...")
-        input_dataset = split_field_in_sentences(input_dataset, field=input_field)
         rank_zero_info(f"New input dataset length is {len(input_dataset)}")
 
     if distributed_available() and global_rank == 0:

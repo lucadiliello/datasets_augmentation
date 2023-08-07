@@ -1,5 +1,5 @@
 # Datasets Augmentation Toolkit
-Increment datasets size retrieving similar sentences from large sources.
+Increment datasets size by retrieving similar sentences from large sources.
 
 This library is based on:
 - [`sentence-transformers`](https://www.sbert.net)
@@ -9,7 +9,7 @@ This library is based on:
 - [`transformers-lightning`](https://github.com/iKernels/transformers-lightning)
 
 
-The process of retrieving similar sentences is divided in 2 tasks:
+The process of retrieving similar sentences is divided into 2 tasks:
 - Encoding of the columns containing the sentences to compare
 - Comparison and retrieval of the similar sentences
 
@@ -29,14 +29,11 @@ with the following parameters:
 - `--input_field <name_of_the_column>`: the column that will be encoded (must contain strings);
 - `--input_shard <n>`: reduces dataset size `n` times (useful for debugging);
 - `--input_limit <n>`: limits dataset length to `n` (useful for debugging);
-- `--split_in_sentences`: if the dataset contains paragraphs or documents, it may be useful to first split every row in single sentences (thus increasing the dataset length);
-
+- `--split <sentences|paragraphs>`: if the dataset contains many sentences or paragraphs, every row can be split into single sentences or paragraphs, thus increasing the dataset length;
 - `--model <name_or_path>`: name or path of the `sentence-transformers` model that will be used to encode data;
-- `--remove_stopwords`: whether to remove (English) stopwords before encoding to speed up encoding;
 - `--batch_size <batch_size>`: batch size (per device) for the encoding;
 - `--encoding_chunk_size <batch_size>`: chunk size of the encoding. This will reduce RAM usage with large datasets;
 - `--max_sequence_length <length>`: will clip every encoded sentence to this number of tokens;
-
 - `--output_dataset <path>`: path to save the new dataset containing the encodings;
 
 Non-exhaustive list of additional parameters derived from `pytorch-lightning`:
@@ -50,7 +47,7 @@ The resulting dataset will have an additional column called `{input_field}_encod
 
 ### Example
 
-Download MNLI dataset from the HuggingFace hub:
+Download the MNLI dataset from the HuggingFace hub:
 
 ```python
 from datasets import load_dataset
@@ -65,7 +62,6 @@ python -m datasets_augmentation.compute_embeddings \
     --model sentence-transformers/nli-roberta-base-v2 \
     --input_field hypothesis \
     --batch_size 256 \
-    --remove_stopwords \
     --max_sequence_length 128 \
     --devices 1 \
     --accelerator gpu \

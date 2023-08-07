@@ -1,9 +1,9 @@
 import os
+import re
 import shutil
 from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, Generator, Iterable, List, Tuple
 
-import nltk
 import torch
 from blingfire import text_to_sentences
 from datasets import Dataset
@@ -18,7 +18,7 @@ def logging_info(message: str, rank: int = None):
     _info(message)
 
 
-nltk.download('stopwords', quiet=True)
+cleaner = re.compile(r"\s+")
 
 
 def dict2list(data: Dict[Any, List]) -> List[Dict]:
@@ -55,14 +55,24 @@ def split_in_sentences(sample: Dict[str, List], field: str = None, min_sentence_
     r""" Split text in multiple sentences. """
 
     def process(line: str) -> List[str]:
-        return [x for x in text_to_sentences(line).split("\n") if len(x) >= min_sentence_length]
+        res = [x.strip() for x in text_to_sentences(line).split("\n") if len(x.strip()) >= min_sentence_length]
+        return res
 
     res = sum([process(line) for line in sample[field]], [])
     return {field: res}
 
 
-def remove_stopwords_from_string(sentence: str) -> str:
-    return " ".join(word for word in sentence.split(" ") if word not in nltk.corpus.stopwords.words('english'))
+def split_in_paragraphs(
+    sample: Dict[str, List], field: str = None, min_paragraph_length: int = 40, paragraph_split_character: str = "\n"
+) -> Dict:
+    r""" Split text in multiple paragraphs. """
+
+    def process(line: str) -> List[str]:
+        res = [x.strip() for x in re.split(paragraph_split_character, line) if len(x.strip()) >= min_paragraph_length]
+        return res
+
+    res = sum([process(line) for line in sample[field]], [])
+    return {field: res}
 
 
 def split_dataset_in_chunks(dataset: Dataset, chunk_size: int = None):
