@@ -24,7 +24,7 @@ def main(args):
         f"Cannot write to {args.output_dataset} because it is not empty"
     )
 
-    assert 0 <= args.devices <= torch.cuda.device_count()  # TODO: change 0 to 1
+    assert 1 <= args.devices <= torch.cuda.device_count()
 
     if args.devices == 0:
         args.devices = None
@@ -60,7 +60,6 @@ def main(args):
         fn_kwargs=dict(
             model=args.model,
             batch_size=args.batch_size,
-            max_sequence_length=args.max_sequence_length,
             dtype=dtype,
             devices=args.devices,
         )
@@ -86,9 +85,8 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, required=True)
 
     # encoding parameters
-    parser.add_argument('--batch_size', type=int, default=128, required=False)
+    parser.add_argument('--batch_size', type=int, default=2**10, required=False)
     parser.add_argument('--loading_batch_size', type=int, default=2**20, required=False)
-    parser.add_argument('--max_sequence_length', type=int, default=128, required=False)
 
     # resulting dataset
     parser.add_argument('--output_dataset', type=str, required=True)

@@ -1,11 +1,7 @@
 import logging
-from functools import partial
 from multiprocessing import cpu_count
-from typing import Callable, Dict, List
 
-import torch
 from datasets import Dataset, load_from_disk
-from torch.utils.data import DataLoader
 
 from datasets_augmentation.utilities import split_in_sentences
 
@@ -29,50 +25,6 @@ def split_field_in_sentences(dataset: Dataset, field: str) -> Dataset:
         remove_columns=dataset.column_names,
         batched=True,
         fn_kwargs=dict(field=field),
-    )
-
-
-def collate_fn(
-    text: List[str],
-    tokenize_fn: Callable = None,
-    max_sequence_length: int = None,
-    device: torch.device = 'cpu',
-) -> Dict:
-    r""" Tokenizer batch of sentences. """
-
-    features = tokenize_fn(text)
-    features = {k: v.to(device) for k, v in features.items() if isinstance(v, torch.Tensor)}
-
-    # if max_sequence_length is not None:
-    #     features = {k: v[:, :max_sequence_length] for k, v in features.items()}
-    return features
-
-
-def get_dataloader(
-    text: List[str],
-    tokenize_fn: Callable,
-    batch_size: int,
-    max_sequence_length: int = None,
-    num_workers: int = 0,
-    device: torch.device = 'cpu',
-) -> DataLoader:
-    r""" Tokenizer input sentences, create batches and eventually clip to max length. """
-
-    partial_collate_fn = partial(
-        collate_fn,
-        tokenize_fn=tokenize_fn,
-        max_sequence_length=max_sequence_length,
-        device=device,
-    )
-
-    return DataLoader(
-        text,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        collate_fn=partial_collate_fn,
-        pin_memory=True,
-        drop_last=False,
     )
 
 

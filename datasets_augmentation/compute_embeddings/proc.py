@@ -1,9 +1,11 @@
-from multiprocessing import cpu_count
-from typing import List
+from typing import Dict, List
 
 import torch
-from datasets_augmentation.compute_embeddings.data import get_dataloader
-from datasets_augmentation.compute_embeddings.model import EncodingModel
+from sentence_transformers import SentenceTransformer
+
+
+def move_batch_to_device(batch: Dict, device: torch.device) -> Dict:
+    return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
 
 def process_function(
@@ -11,7 +13,6 @@ def process_function(
     rank: int,
     model: str = None,
     batch_size: int = None,
-    max_sequence_length: int = None,
     dtype: torch.dtype = None,
     devices: int = None,
 ):
@@ -19,42 +20,26 @@ def process_function(
     # rank may be none in single process works
     if rank is None:
         rank = 0
-
-    # os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
-    model = EncodingModel(model)
+    else:
+        rank = rank % devices
 
     # set device
     device = torch.device(f'cuda:{rank}')
 
-    # move model to right device and set in eval mode
-    print("Instantiating model")
-    model = model.eval()
-    model = model.to(device)
+    # instantiate model
+    model = SentenceTransformer(model, device=device)
 
-    # create dataloader
-    print("Create dataloader")
-    dataloader = get_dataloader(
-        text,
-        tokenize_fn=model.model.tokenize,
-        batch_size=batch_size,
-        max_sequence_length=max_sequence_length,
-        num_workers=cpu_count() // (devices or 1),  # automatically partition cores for accelerators
-        device=device,
-    )
+    with torch.autocast(device_type="cuda", dtype=dtype):
+        embeddings = model.encode(
+            text,
+            batch_size=batch_size,
+            show_progress_bar=False,
+            output_value='sentence_embedding',
+            convert_to_numpy=True,
+            convert_to_tensor=False,
+            normalize_embeddings=True,
+        )
 
-    print("Embedding")
-    print(model.device)
-    res = []
-    with torch.inference_mode():
-        # with torch.autocast(device_type="cuda", dtype=dtype):
-        for batch in dataloader:
-            print(batch['input_ids'].device); exit()
-            output = model(**batch)
-            output = output.cpu().detach().tolist()
-            res += output
-            print(len(res))
-    
-    print("Del model")
     del model
 
-    return res
+    return dict(embeddings=embeddings.tolist())
