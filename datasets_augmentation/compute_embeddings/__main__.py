@@ -10,9 +10,10 @@ from torch.utils.data import DataLoader
 import datasets
 from datasets import Dataset, concatenate_datasets, load_from_disk
 from lightning.fabric import Fabric
-from lightning_fabric.utilities.rank_zero import rank_zero_info, _info
+from lightning_utilities.core.rank_zero import rank_zero_info, _info, rank_prefixed_message
 from lightning_fabric.utilities.distributed import _distributed_available as distributed_available
 from tqdm import tqdm
+import numpy as np
 
 from datasets_augmentation.compute_embeddings.data import get_dataloader, prepare_dataset
 from datasets_augmentation.compute_embeddings.model import EncodingModel
@@ -23,6 +24,12 @@ os.environ['TOKENIZERS_PARALLELISM'] = "false"
 logging.getLogger("transformers").setLevel(logging.ERROR)  # too much complains of the tokenizers
 torch.set_float32_matmul_precision('medium')
 datasets.logging.disable_progress_bar()
+
+
+def logging_info(message: str, rank: int = None):
+    if rank is not None:
+        message = rank_prefixed_message(message, rank)
+    _info(message)
 
 
 def get_fabric_args_from_hyperparameters(hyperparameters: Namespace) -> Dict:
@@ -81,6 +88,18 @@ def main(args):
         shuffle=args.shuffle,
     )
 
+    if args.stats and fabric.global_rank == 0:
+        rank_zero_info("Computing statistics of prepared dataset...")
+        stats = original_dataset.shard(100, 0).map(
+            lambda a: dict(length=len(a)), input_columns=args.input_field, num_proc=cpu_count()
+        )
+        lengths = stats['length']
+        rank_zero_info(f"Average length (chars): {np.mean(lengths)}")
+        rank_zero_info(f"Std.dev. length (chars): {np.std(lengths)}")
+        rank_zero_info(f"Min length (chars): {np.min(lengths)}")
+        rank_zero_info(f"Max length (chars): {np.max(lengths)}")
+        del lengths, stats
+
     # start chunked encoding
     rank_zero_info("Sharding dataset")
     input_dataset = original_dataset.shard(args.devices, fabric.global_rank, contiguous=True)
@@ -105,12 +124,13 @@ def main(args):
     cache_filename = f"slice_{fabric.global_rank}_of_{fabric.world_size}"
     cache_filepath = os.path.join(datasets_cache_folder, cache_filename)
 
-    _info(f"Saving embeddings ({fabric.global_rank}/{fabric.world_size})...")
+    logging_info(f"Saving embeddings ({fabric.global_rank}/{fabric.world_size})...", rank=fabric.global_rank)
     res.save_to_disk(cache_filepath)
 
     # wait for all processes to have saved the embeddings
     rank_zero_info("Waiting for all processes to finish...")
     if distributed_available():
+        logging_info("Complete!")
         fabric.barrier()
 
     # final dataset reconstruction
@@ -150,6 +170,7 @@ if __name__ == "__main__":
     parser.add_argument('--input_limit', type=int, required=False, default=None)
     parser.add_argument('--split_in_sentences', action="store_true")
     parser.add_argument('--shuffle', action="store_true")
+    parser.add_argument('--stats', action="store_true")
 
     # model to encode sentences
     parser.add_argument('--model', type=str, required=True)
