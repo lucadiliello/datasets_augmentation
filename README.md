@@ -33,9 +33,9 @@ with the following parameters:
 
 - `--model <name_or_path>`: name or path of the `sentence-transformers` model that will be used to encode data;
 - `--remove_stopwords`: whether to remove (English) stopwords before encoding to speed up encoding;
-- `--encoding_batch_size <batch_size>`: batch size (per device) for the encoding;
+- `--batch_size <batch_size>`: batch size (per device) for the encoding;
 - `--encoding_chunk_size <batch_size>`: chunk size of the encoding. This will reduce RAM usage with large datasets;
-- `--max_encoding_length <length>`: will clip every encoded sentence to this number of tokens;
+- `--max_sequence_length <length>`: will clip every encoded sentence to this number of tokens;
 
 - `--output_dataset <path>`: path to save the new dataset containing the encodings;
 
@@ -64,9 +64,9 @@ python -m datasets_augmentation.compute_embeddings \
     --output_dataset /path/to/save/dataset_encoded \
     --model sentence-transformers/nli-roberta-base-v2 \
     --input_field hypothesis \
-    --encoding_batch_size 256 \
+    --batch_size 256 \
     --remove_stopwords \
-    --max_encoding_length 128 \
+    --max_sequence_length 128 \
     --devices 1 \
     --accelerator gpu \
 ```
