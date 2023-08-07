@@ -23,7 +23,6 @@ from datasets_augmentation.utilities import logging_info, rank_zero_info
 os.environ['TOKENIZERS_PARALLELISM'] = "false"
 logging.getLogger("transformers").setLevel(logging.ERROR)  # too much complains of the tokenizers
 torch.set_float32_matmul_precision('medium')
-datasets.logging.disable_progress_bar()
 
 
 def get_fabric_args_from_hyperparameters(hyperparameters: Namespace) -> Dict:
@@ -94,8 +93,11 @@ def main(args):
         rank_zero_info(f"Max length (chars): {np.max(lengths)}")
         del lengths, stats
 
+    # disable logging since we have already our fabric logging
+    datasets.logging.disable_progress_bar()
+
     # start chunked encoding
-    rank_zero_info("Sharding dataset")
+    rank_zero_info("Dividing dataset across processes")
     input_dataset = original_dataset.shard(args.devices, fabric.global_rank, contiguous=True)
 
     rank_zero_info("Creating dataloader")
