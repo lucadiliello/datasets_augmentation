@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import shutil
@@ -55,13 +56,19 @@ def main(args):
 
     # clean tmp dir from files of this framework
     rank_zero_info("Creating tmp directories from files of this framework...")
-    datasets_cache_folder = os.path.join(args.tmp_dir, 'datasets')
+    name = hashlib.sha256((args.model + args.input_dataset).encode()).hexdigest()[:32]
+    datasets_cache_folder = os.path.join(args.tmp_dir, name, 'datasets')
+
+    rank_zero_info(f"Experiment code: {name}")
 
     shutil.rmtree(datasets_cache_folder, ignore_errors=True)
     os.makedirs(datasets_cache_folder, exist_ok=True)
 
-    rank_zero_info("Loading model and moving to device...")
+    rank_zero_info("Loading model...")
     model = EncodingModel(args.model)
+    embedding_size = model.get_sentence_embedding_dimension()
+
+    rank_zero_info(f"Model produces embeddings with size {embedding_size}")
 
     # instantiate PL trainer
     fabric_hyperparameters = get_fabric_args_from_hyperparameters(args)
@@ -117,6 +124,10 @@ def main(args):
     # embed!
     res = Dataset.from_generator(encode, gen_kwargs=dict(model=model, dataloader=dataloader, rank=fabric.global_rank))
 
+    # unload model and free gpus
+    model.to(device=torch.device('cpu'))  # needed because fabric may create new references to the model
+    del model
+
     cache_filename = f"slice_{fabric.global_rank}_of_{fabric.world_size}"
     cache_filepath = os.path.join(datasets_cache_folder, cache_filename)
 
@@ -145,7 +156,11 @@ def main(args):
         rank_zero_info(f"Saving to disk at '{args.output_dataset}'")
         output_dataset.save_to_disk(args.output_dataset)
 
-        rank_zero_info(f"Successfully computed embeddings of size {model.get_sentence_embedding_dimension()}!")
+        rank_zero_info("Cleaning...")
+        for path in cache_filepaths:
+            shutil.rmtree(path)
+
+        rank_zero_info(f"Successfully computed embeddings of size {embedding_size}!")
 
 
 if __name__ == "__main__":
@@ -183,8 +198,8 @@ if __name__ == "__main__":
         '--tmp_dir',
         type=str,
         required=False,
-        default="/tmp/datasets_augmentation",
-        help="Change if space on main disk is limited",
+        default="/science/lucadiliello/.cache/datasets_augmentation",
+        help="Change if space on disk is limited",
     )
     parser.add_argument('--reset_cache', action="store_true", help="Clean all previously cached processed datasets")
 

@@ -45,8 +45,6 @@ def collate_fn(
     if max_sequence_length is not None:
         features = {k: v[:, :max_sequence_length] for k, v in features.items()}
 
-    # uuid will be used to rebuild order and retrieve additional original data
-    # uuid = torch.tensor([b['uuid'] for b in batch])
     return features
 
 
