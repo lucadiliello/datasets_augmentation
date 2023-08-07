@@ -1,6 +1,6 @@
 import os
-from multiprocessing import Pool, cpu_count
 import shutil
+from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, Generator, Iterable, List, Tuple
 
 import nltk
@@ -8,6 +8,14 @@ import torch
 from blingfire import text_to_sentences
 from datasets import Dataset
 from lightning.pytorch.callbacks import TQDMProgressBar as PLTQDMProgressBar
+from lightning_fabric.utilities.distributed import _distributed_available as distributed_available  # noqa: F401
+from lightning_utilities.core.rank_zero import _info, rank_prefixed_message, rank_zero_info  # noqa: F401
+
+
+def logging_info(message: str, rank: int = None):
+    if rank is not None:
+        message = rank_prefixed_message(message, rank)
+    _info(message)
 
 
 nltk.download('stopwords', quiet=True)

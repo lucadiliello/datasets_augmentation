@@ -2,8 +2,9 @@ import logging
 import math
 import os
 from argparse import ArgumentParser
-import numpy as np
+
 import faiss
+import numpy as np
 from datasets import load_from_disk
 from multiprocess import cpu_count
 from tqdm import tqdm

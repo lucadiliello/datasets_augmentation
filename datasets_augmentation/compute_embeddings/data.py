@@ -1,14 +1,12 @@
-import logging
 from functools import partial
 from multiprocessing import cpu_count
 from typing import Callable, Dict, List
 
 import torch
 from datasets import Dataset, load_from_disk
-from lightning_fabric.utilities.distributed import _distributed_available as distributed_available
 from torch.utils.data import DataLoader
 
-from datasets_augmentation.utilities import split_in_sentences
+from datasets_augmentation.utilities import distributed_available, rank_zero_info, split_in_sentences
 
 
 def limit_and_shard(dataset: Dataset, shard: int = None, limit: int = None) -> Dataset:
@@ -94,13 +92,13 @@ def prepare_dataset(
     shuffle: bool = False,
 ) -> Dataset:
 
-    logging.info("Loading input dataset...")
+    rank_zero_info("Loading input dataset...")
     input_dataset = load_from_disk(input_dataset)
 
-    logging.info("Checking datasets features...")
+    rank_zero_info("Checking datasets features...")
     assert input_field in input_dataset.features and input_dataset.features[input_field].dtype == 'string'
 
-    logging.info("Sharding and limiting input datasets...")
+    rank_zero_info("Sharding and limiting input datasets...")
     input_dataset = limit_and_shard(input_dataset, shard=input_shard, limit=input_limit)
 
     # preparing protected environment for concurrency
@@ -112,13 +110,13 @@ def prepare_dataset(
         torch.distributed.barrier()
 
     if shuffle:
-        logging.info("Shuffling dataset")
+        rank_zero_info("Shuffling dataset")
         input_dataset = input_dataset.shuffle()
 
     if split_in_sentences:
-        logging.info("Splitting dataset field in single sentences...")
+        rank_zero_info("Splitting dataset field in single sentences...")
         input_dataset = split_field_in_sentences(input_dataset, field=input_field)
-        logging.info(f"New input dataset length is {len(input_dataset)}")
+        rank_zero_info(f"New input dataset length is {len(input_dataset)}")
 
     if distributed_available() and global_rank == 0:
         torch.distributed.barrier()

@@ -1,22 +1,22 @@
 import logging
 import os
+import shutil
 from argparse import ArgumentParser, Namespace
 from multiprocessing import cpu_count
-import shutil
 from typing import Dict, Generator
 
-import torch
-from torch.utils.data import DataLoader
 import datasets
+import numpy as np
+import torch
 from datasets import Dataset, concatenate_datasets, load_from_disk
 from lightning.fabric import Fabric
-from lightning_utilities.core.rank_zero import rank_zero_info, _info, rank_prefixed_message
 from lightning_fabric.utilities.distributed import _distributed_available as distributed_available
+from torch.utils.data import DataLoader
 from tqdm import tqdm
-import numpy as np
 
 from datasets_augmentation.compute_embeddings.data import get_dataloader, prepare_dataset
 from datasets_augmentation.compute_embeddings.model import EncodingModel
+from datasets_augmentation.utilities import logging_info, rank_zero_info
 
 
 # configure libraries
@@ -24,12 +24,6 @@ os.environ['TOKENIZERS_PARALLELISM'] = "false"
 logging.getLogger("transformers").setLevel(logging.ERROR)  # too much complains of the tokenizers
 torch.set_float32_matmul_precision('medium')
 datasets.logging.disable_progress_bar()
-
-
-def logging_info(message: str, rank: int = None):
-    if rank is not None:
-        message = rank_prefixed_message(message, rank)
-    _info(message)
 
 
 def get_fabric_args_from_hyperparameters(hyperparameters: Namespace) -> Dict:
@@ -143,10 +137,10 @@ def main(args):
         rank_zero_info("Loading computed embeddings...")
         output_embeddings = concatenate_datasets([load_from_disk(f) for f in cache_filepaths], axis=0)
 
-        rank_zero_info("Merging with original dataset...")
+        rank_zero_info("Merging embeddings with original dataset...")
         output_dataset = concatenate_datasets([original_dataset, output_embeddings], axis=1)
 
-        rank_zero_info("Saving to disk...")
+        rank_zero_info(f"Saving to disk at '{args.output_dataset}'")
         output_dataset.save_to_disk(args.output_dataset)
 
         rank_zero_info(f"Successfully computed embeddings of size {model.get_sentence_embedding_dimension()}!")
