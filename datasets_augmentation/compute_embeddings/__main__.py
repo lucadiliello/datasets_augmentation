@@ -13,8 +13,8 @@ import torch
 import torch._dynamo
 from datasets import Dataset, concatenate_datasets, load_from_disk
 from lightning.fabric import Fabric
-from lightning_fabric.utilities.distributed import _distributed_available as distributed_available
 from lightning.fabric.plugins.collectives import torch_collective
+from lightning_fabric.utilities.distributed import _distributed_available as distributed_available
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
