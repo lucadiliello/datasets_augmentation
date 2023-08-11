@@ -1,7 +1,7 @@
 from functools import partial
 from multiprocessing import cpu_count
-from typing import Callable, Dict, List
-
+from typing import Dict, List
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 import torch
 from datasets import Dataset, load_from_disk
 from torch.utils.data import DataLoader
@@ -50,33 +50,38 @@ def split_documents_in_paragraphs(dataset: Dataset, field: str, **kwargs) -> Dat
 def collate_fn(
     batch: List[Dict],
     field: str = None,
-    tokenize_fn: Callable = None,
+    tokenizer: PreTrainedTokenizerBase = None,
     max_sequence_length: int = None,
+    torch_compile: bool = False,
 ) -> Dict:
     r""" Tokenizer batch of sentences. """
     sentences_batch = [b[field] for b in batch]
-    features = tokenize_fn(sentences_batch)
-
-    if max_sequence_length is not None:
-        features = {k: v[:, :max_sequence_length] for k, v in features.items()}
-
+    features = tokenizer(
+        sentences_batch,
+        max_length=max_sequence_length,
+        padding=('max_length' if torch_compile else 'longest'),
+        truncation='longest_first',
+        return_tensors='pt',
+    )
     return features
 
 
 def get_dataloader(
     dataset: Dataset,
     field: str,
-    tokenize_fn: Callable,
+    tokenizer: PreTrainedTokenizerBase,
     batch_size: int,
     max_sequence_length: int = None,
     num_workers: int = 0,
+    torch_compile: bool = False,
 ) -> DataLoader:
     r""" Tokenizer input sentences, create batches and eventually clip to max length. """
     partial_collate_fn = partial(
         collate_fn,
         field=field,
-        tokenize_fn=tokenize_fn,
+        tokenizer=tokenizer,
         max_sequence_length=max_sequence_length,
+        torch_compile=torch_compile,
     )
 
     return DataLoader(

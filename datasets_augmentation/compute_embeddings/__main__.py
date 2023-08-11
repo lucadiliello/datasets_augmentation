@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import logging
 import os
@@ -9,9 +10,11 @@ from typing import Dict, Generator
 import datasets
 import numpy as np
 import torch
+import torch._dynamo
 from datasets import Dataset, concatenate_datasets, load_from_disk
 from lightning.fabric import Fabric
 from lightning_fabric.utilities.distributed import _distributed_available as distributed_available
+from lightning.fabric.plugins.collectives import torch_collective
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -24,10 +27,14 @@ from datasets_augmentation.utilities import logging_info, rank_zero_info
 os.environ['TOKENIZERS_PARALLELISM'] = "false"
 logging.getLogger("transformers").setLevel(logging.ERROR)  # too much complains of the tokenizers
 torch.set_float32_matmul_precision('medium')
+torch._dynamo.config.suppress_errors = True
+long_timeout = datetime.timedelta(hours=12)
+torch_collective.default_pg_timeout = long_timeout  # needed because pre-processing of data could require a lot of time
 
 
 def get_fabric_args_from_hyperparameters(hyperparameters: Namespace) -> Dict:
     r""" Just extract generation hyperparameters from namespace. """
+
     return dict(
         accelerator=hyperparameters.accelerator,
         strategy=hyperparameters.strategy,
@@ -37,7 +44,12 @@ def get_fabric_args_from_hyperparameters(hyperparameters: Namespace) -> Dict:
     )
 
 
-def encode(model: EncodingModel, dataloader: DataLoader, rank: int) -> Generator:
+def encode(model: EncodingModel, dataloader: DataLoader, rank: int, compile: bool = False) -> Generator:
+
+    if args.compile:
+        rank_zero_info("Activating torch compile...")
+        model = torch.compile(model)
+
     with torch.inference_mode():
         for batch in tqdm(dataloader, desc=f"Encoding({rank})", total=len(dataloader), position=rank):
             embeddings = model.predict_step(batch)
@@ -111,10 +123,11 @@ def main(args):
     dataloader = get_dataloader(
         input_dataset,
         field=args.input_field,
-        tokenize_fn=model.model.tokenize,
+        tokenizer=model.model.tokenizer,
         batch_size=args.batch_size,
         max_sequence_length=args.max_sequence_length,
         num_workers=cpu_count() // args.devices,
+        torch_compile=args.compile,
     )
 
     # setup model and dataloader
@@ -122,7 +135,9 @@ def main(args):
     dataloader = fabric.setup_dataloaders(dataloader, move_to_device=True, use_distributed_sampler=False)
 
     # embed!
-    res = Dataset.from_generator(encode, gen_kwargs=dict(model=model, dataloader=dataloader, rank=fabric.global_rank))
+    res = Dataset.from_generator(encode, gen_kwargs=dict(
+        model=model, dataloader=dataloader, rank=fabric.global_rank, compile=args.compile
+    ))
 
     # unload model and free gpus
     model.to(device=torch.device('cpu'))  # needed because fabric may create new references to the model
@@ -166,13 +181,17 @@ def main(args):
 if __name__ == "__main__":
     parser = ArgumentParser()
 
+    allowed_precisions = ('16-mixed', 'bf16-mixed', '32-true')
+
     # fabric args
-    allowed_prec = ('16-mixed', 'bf16-mixed', '32-true')
     parser.add_argument('--accelerator', type=str, default="auto", required=False)
     parser.add_argument('--strategy', type=str, default="auto", required=False)
     parser.add_argument('--devices', type=int, default="auto", required=False)
     parser.add_argument('--num_nodes', type=int, default=1, required=False)
-    parser.add_argument('--precision', type=str, default=allowed_prec[0], required=False, choices=allowed_prec)
+    parser.add_argument(
+        '--precision', type=str, default=allowed_precisions[0], required=False, choices=allowed_precisions
+    )
+    parser.add_argument('--compile', action="store_true")
 
     # input dataset
     parser.add_argument('--input_dataset', type=str, required=True)
